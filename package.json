@@ -1,0 +1,32 @@
+{
+  "name": "cwl-ts-parser",
+  "version": "1.0.0",
+  "description": "Parser for translating the CWL spec into Typescript interfaces",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "get-cwl": "rm -rf common-workflow-language && mkdir common-workflow-language && git clone https://github.com/common-workflow-language/common-workflow-language"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ivanbatic/cwl-ts-parser.git"
+  },
+  "author": "Ivan Batić <ivan.batic@live.com>",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/ivanbatic/cwl-ts-parser/issues"
+  },
+  "homepage": "https://github.com/ivanbatic/cwl-ts-parser#readme",
+  "dependencies": {
+    "asciidoctor.js": "^1.5.5-1",
+    "ejs": "^2.4.2",
+    "handlebars": "^4.0.5",
+    "js-yaml": "^3.6.1",
+    "node-mkdirp": "0.0.1",
+    "typescript-formatter": "^2.2.0",
+    "yaml-to-json": "^0.3.0"
+  },
+  "devDependencies": {
+    "typescript": "^1.8.0"
+  }
+}

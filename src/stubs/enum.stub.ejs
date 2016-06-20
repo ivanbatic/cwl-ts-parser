@@ -1,0 +1,5 @@
+<% if(doc) { %>
+/**
+* <%- doc %>
+*/ <% } %>
+export type <%- name %> = <%- symbols.map(item => `"${item}"`).join(" | ") %>;

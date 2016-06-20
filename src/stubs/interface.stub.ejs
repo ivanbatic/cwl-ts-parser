@@ -1,0 +1,15 @@
+<% if(doc) { %>
+/**
+* <%- doc %>
+*/
+<% } %>
+export interface <%- name %> <% if (extension) { %>extends <%- extension %><% } %> {
+<% for (let i = 0; i < fields.length; i++ ) { %>
+    <% if (fields[i].doc) { %>
+    /**
+    * <%- fields[i].doc %>
+    */
+    <% } %>
+    <%- fields[i].name %><% if(fields[i].isOptional === true) { %>?<% } %>: <%- fields[i].type %>;
+<% } %>
+}

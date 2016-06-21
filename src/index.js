@@ -59,6 +59,10 @@ function parseTypes(field, includes) {
             return "Number";
         }
 
+        if(type === "Any"){
+            return "any";
+        }
+
         if (typeof type === "string") {
             return sanitizeSchemaLink(type, includes);
         }

@@ -11,40 +11,49 @@ const readConfig = {
     flag: "r"
 };
 
-
 const drafts = {
-    names: ["draft-3", "draft-4"],
-    files: [
+    "draft-3": [
         "salad/schema_salad/metaschema/metaschema.yml",
         "CommandLineTool.yml",
         "Process.yml",
         "Workflow.yml"
+    ],
+    "draft-4": [
+        "salad/schema_salad/metaschema/metaschema_base.yml",
+        "salad/schema_salad/metaschema/metaschema.yml",
+        "CommandLineTool.yml",
+        "Process.yml",
+        "Workflow.yml"
+
     ]
 };
 
 let rootOutput = "tmp";
-for (let draftName of drafts.names) {
+for (let draftName of Object.keys(drafts)) {
 
     let output = path.resolve(`${rootOutput}/${draftName}`);
     mkdirp.sync(output);
 
-    drafts.files.forEach((filename) => {
+    drafts[draftName].forEach((filename) => {
         const absPath = path.resolve(`../common-workflow-language/${draftName}/${filename}`);
+
         const fileContent = fs.readFileSync(absPath, readConfig);
         const graph = yaml.safeLoad(fileContent, {json: true}).$graph;
 
-        graph.filter(node => node.type === "record" && node.type === "enum").forEach(record => {
-            const fileName = `${record.name}.ts`;
-            let compiled = "";
+        graph.filter(node => node.type === "record" || node.type === "enum")
+            .filter(node =>node.name === "ArraySchema")
+            .forEach(record => {
+                const fileName = `${record.name}.ts`;
+                let compiled = "";
 
-            if (record.type === "enum") {
-                compiled = makeEnum(record);
-            } else {
-                compiled = makeInterface(record);
-            }
+                if (record.type === "enum") {
+                    compiled = makeEnum(record);
+                } else {
+                    compiled = makeInterface(record);
+                }
 
-            fs.writeFileSync(`${output}/${fileName}`, compiled);
-        });
+                fs.writeFileSync(`${output}/${fileName}`, compiled);
+            });
     });
 }
 
@@ -87,10 +96,14 @@ function parseTypes(field, includes) {
 function sanitizeSchemaLink(name, includes) {
     const sanitized = name.replace(/^(#|sld:|cwl:)/, "");
 
-    if (Array.isArray(includes)) {
-        if (name.charAt(0) === "#" || name.indexOf("sld:") === 0) {
-            includes.push(sanitized);
-        }
+    let firstChar = name.charAt(0);
+    if (Array.isArray(includes)
+        && firstChar !== "\""
+        && name.split("|").length === 1
+        && ["any", "number", "array", "boolean", "string", "null"].indexOf(name) === -1) {
+        // if (name.charAt(0) === "#" || name.indexOf("sld:") === 0 || name.indexOf("cwl:") === 0) {
+        includes.push(sanitized);
+        // }
     }
 
     return sanitized;

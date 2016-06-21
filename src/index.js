@@ -155,7 +155,7 @@ function makeInterface(record) {
     });
 
     data.includes = data.includes
-        .filter((item, index, arr) => arr.indexOf(item) === index);
+        .filter((item, index, arr) => arr.indexOf(item) === index && item !== data.name);
 
     return ejs.render(fs.readFileSync("./stubs/interface.stub.ejs", readConfig), data);
 }

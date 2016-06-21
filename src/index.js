@@ -88,15 +88,9 @@ function sanitizeSchemaLink(name, includes) {
     const sanitized = name.replace(/^(#|sld:)/, "");
 
     if (Array.isArray(includes)) {
-        if (name.charAt(0) === "#") {
-            includes.push({
-                token: sanitized,
-                path: `./${sanitized}`
-            });
-        } else if (name.indexOf("sld:") === 0) {
-            includes.push({token: sanitized, path: `./${sanitized}`});
+        if (name.charAt(0) === "#" || name.indexOf("sld:") === 0) {
+            includes.push(sanitized);
         }
-
     }
 
     return sanitized;

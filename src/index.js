@@ -12,12 +12,12 @@ const readConfig = {
 };
 
 const drafts = {
-    // "draft-3": [
-    //     "salad/schema_salad/metaschema/metaschema.yml",
-    //     "CommandLineTool.yml",
-    //     "Process.yml",
-    //     "Workflow.yml"
-    // ],
+    "draft-3": [
+        "salad/schema_salad/metaschema/metaschema.yml",
+        "CommandLineTool.yml",
+        "Process.yml",
+        "Workflow.yml"
+    ],
     "draft-4": [
         "salad/schema_salad/metaschema/metaschema_base.yml",
         "salad/schema_salad/metaschema/metaschema.yml",
@@ -43,7 +43,6 @@ for (let draftName of Object.keys(drafts)) {
         const graph = yaml.safeLoad(fileContent, {json: true}).$graph;
 
         graph.filter(node => node.type === "record" || node.type === "enum")
-            // .filter(node => node.name === "CWLType" || node.name === "PrimitiveType")
             .forEach(node => entries[node.name] = node);
     });
 
@@ -157,9 +156,6 @@ function makeInterface(record, nameTokens) {
         }
 
         parsedTypes.forEach((type, index, self) => {
-            if (typeof type !== "string") {
-                console.log("wait");
-            }
             if (typeof type === "string" && type.charAt(type.length - 1) === "?") {
                 self[index] = type.substr(0, type.length - 1);
                 field.isOptional = true;
@@ -170,10 +166,6 @@ function makeInterface(record, nameTokens) {
         field.type = parseTypes(field, data.includes);
 
     });
-
-    if(data.name === "SaladRecordField"){
-        console.log("stop");
-    }
 
     data.includes = data.includes
         .map(name => name.replace(/[\[\]\?]/, ""))

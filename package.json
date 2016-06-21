@@ -6,7 +6,8 @@
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "get-cwl": "rm -rf common-workflow-language && mkdir common-workflow-language && git clone https://github.com/common-workflow-language/common-workflow-language",
-    "fmt": "node node_modules/typescript-formatter/bin/tsfmt -- src/tmp/**/*.ts"
+    "fmt": "node node_modules/typescript-formatter/bin/tsfmt -- src/tmp/**/*.ts",
+    "start": "node ./src/index.js"
   },
   "repository": {
     "type": "git",
@@ -23,7 +24,7 @@
     "ejs": "^2.4.2",
     "handlebars": "^4.0.5",
     "js-yaml": "^3.6.1",
-    "node-mkdirp": "0.0.1",
+    "mkdirp": "^0.5.1",
     "typescript-formatter": "^2.2.0",
     "yaml-to-json": "^0.3.0"
   },

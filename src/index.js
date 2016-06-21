@@ -28,38 +28,40 @@ const drafts = {
     ]
 };
 
-let rootOutput = "tmp";
-for (let draftName of Object.keys(drafts)) {
+function generate(cwldir, outdir) {
+    for (let draftName of Object.keys(drafts)) {
 
-    let output = path.resolve(`${rootOutput}/${draftName}`);
-    mkdirp.sync(output);
+        let output = path.resolve(`${outdir}/${draftName}`);
+       let cr = mkdirp.sync(output);
 
-    let entries = {};
+        let entries = {};
 
-    drafts[draftName].forEach(filename => {
-        const absPath = path.resolve(`../common-workflow-language/${draftName}/${filename}`);
+        drafts[draftName].forEach(filename => {
+            const absPath = path.resolve(`${cwldir}/${draftName}/${filename}`);
 
-        const fileContent = fs.readFileSync(absPath, readConfig);
-        const graph = yaml.safeLoad(fileContent, {json: true}).$graph;
+            const fileContent = fs.readFileSync(absPath, readConfig);
+            const graph = yaml.safeLoad(fileContent, {json: true}).$graph;
 
-        graph.filter(node => node.type === "record" || node.type === "enum")
-            .forEach(node => entries[node.name] = node);
-    });
+            graph.filter(node => node.type === "record" || node.type === "enum")
+                .forEach(node => entries[node.name] = node);
+        });
 
-    let nameTokens = Object.keys(entries);
+        let nameTokens = Object.keys(entries);
 
-    for (let name in entries) {
-        const record = entries[name];
-        const fileName = `${record.name}.ts`;
-        let compiled = "";
+        for (let name in entries) {
+            const record = entries[name];
+            const fileName = `${record.name}.ts`;
+            let compiled = "";
 
-        if (record.type === "enum") {
-            compiled = makeEnum(record, nameTokens);
-        } else {
-            compiled = makeInterface(record, nameTokens);
+            if (record.type === "enum") {
+                compiled = makeEnum(record, nameTokens);
+            } else {
+                compiled = makeInterface(record, nameTokens);
+            }
+
+            fs.writeFile(`${output}/${fileName}`, compiled);
+
         }
-
-        fs.writeFileSync(`${output}/${fileName}`, compiled);
     }
 }
 
@@ -116,11 +118,11 @@ function makeEnum(record, nameTokens) {
     }, record);
 
     data.symbols = parseTypes({types: data.symbols}).map(type => `"${type}"`);
-    if(record.extends){
+    if (record.extends) {
         data.symbols = data.symbols.concat(parseTypes({types: [record.extends]}, data.includes));
     }
 
-    return ejs.render(fs.readFileSync("./stubs/enum.stub.ejs", readConfig), data);
+    return ejs.render(fs.readFileSync("../stubs/enum.stub.ejs", readConfig), data);
 }
 
 function makeInterface(record, nameTokens) {
@@ -146,7 +148,6 @@ function makeInterface(record, nameTokens) {
     data.fields.forEach(field => {
         field.doc = field.doc ? field.doc.replace(...docAsteriskExpansion) : "";
         field.isOptional = false;
-
 
         let parsedTypes = parseTypes(field, data.includes);
 
@@ -175,7 +176,9 @@ function makeInterface(record, nameTokens) {
         });
 
 
-    return ejs.render(fs.readFileSync("./stubs/interface.stub.ejs", readConfig), data);
+    return ejs.render(fs.readFileSync("../stubs/interface.stub.ejs", readConfig), data);
 }
 
-
+module.exports = {
+    generate: generate
+};

@@ -41,7 +41,6 @@ for (let draftName of Object.keys(drafts)) {
         const graph = yaml.safeLoad(fileContent, {json: true}).$graph;
 
         graph.filter(node => node.type === "record" || node.type === "enum")
-            .filter(node =>node.name === "ArraySchema")
             .forEach(record => {
                 const fileName = `${record.name}.ts`;
                 let compiled = "";
@@ -65,7 +64,7 @@ function parseTypes(field, includes) {
 
     function scan(type) {
         if (["int", "float", "double", "long"].indexOf(type) !== -1) {
-            return "Number";
+            return "number";
         }
 
         if (type === "Any") {
@@ -100,6 +99,7 @@ function sanitizeSchemaLink(name, includes) {
     if (Array.isArray(includes)
         && firstChar !== "\""
         && name.split("|").length === 1
+        && sanitized.indexOf("Array<") === -1
         && ["any", "number", "array", "boolean", "string", "null"].indexOf(name) === -1) {
         // if (name.charAt(0) === "#" || name.indexOf("sld:") === 0 || name.indexOf("cwl:") === 0) {
         includes.push(sanitized);

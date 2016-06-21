@@ -33,7 +33,7 @@ for (let draftName of drafts.names) {
         const fileContent = fs.readFileSync(absPath, readConfig);
         const graph = yaml.safeLoad(fileContent, {json: true}).$graph;
 
-        graph.filter(node => node.type !== "documentation").forEach(record => {
+        graph.filter(node => node.type === "record" && node.type === "enum").forEach(record => {
             const fileName = `${record.name}.ts`;
             let compiled = "";
 
@@ -59,7 +59,7 @@ function parseTypes(field, includes) {
             return "Number";
         }
 
-        if(type === "Any"){
+        if (type === "Any") {
             return "any";
         }
 
@@ -67,12 +67,12 @@ function parseTypes(field, includes) {
             return sanitizeSchemaLink(type, includes);
         }
 
-        if(typeof type === "object"){
-            if(type.type === "array"){
+        if (typeof type === "object") {
+            if (type.type === "array") {
                 return "Array<" + parseTypes({types: type.items}, includes).join(" | ") + ">";
             }
 
-            if(type.type === "enum"){
+            if (type.type === "enum") {
                 return parseTypes({types: type.symbols}).map(i => `"${i}"`);
             }
         }
@@ -85,7 +85,7 @@ function parseTypes(field, includes) {
 }
 
 function sanitizeSchemaLink(name, includes) {
-    const sanitized = name.replace(/^(#|sld:)/, "");
+    const sanitized = name.replace(/^(#|sld:|cwl:)/, "");
 
     if (Array.isArray(includes)) {
         if (name.charAt(0) === "#" || name.indexOf("sld:") === 0) {

@@ -1,5 +1,7 @@
+<% if (includes.length) { for (var inc of includes){%>
+import {<%- inc %>} from "./<%- inc %>";<%}}%>
 <% if(doc) { %>
 /**
 * <%- doc %>
 */ <% } %>
-export type <%- name %> = <%- symbols.map(item => `"${item}"`).join(" | ") %>;
+export type <%- name %> = <%- symbols.join(" | ") %>;

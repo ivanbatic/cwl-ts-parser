@@ -12,12 +12,12 @@ const readConfig = {
 };
 
 const drafts = {
-    "draft-3": [
-        "salad/schema_salad/metaschema/metaschema.yml",
-        "CommandLineTool.yml",
-        "Process.yml",
-        "Workflow.yml"
-    ],
+    // "draft-3": [
+    //     "salad/schema_salad/metaschema/metaschema.yml",
+    //     "CommandLineTool.yml",
+    //     "Process.yml",
+    //     "Workflow.yml"
+    // ],
     "draft-4": [
         "salad/schema_salad/metaschema/metaschema_base.yml",
         "salad/schema_salad/metaschema/metaschema.yml",
@@ -34,26 +34,34 @@ for (let draftName of Object.keys(drafts)) {
     let output = path.resolve(`${rootOutput}/${draftName}`);
     mkdirp.sync(output);
 
-    drafts[draftName].forEach((filename) => {
+    let entries = {};
+
+    drafts[draftName].forEach(filename => {
         const absPath = path.resolve(`../common-workflow-language/${draftName}/${filename}`);
 
         const fileContent = fs.readFileSync(absPath, readConfig);
         const graph = yaml.safeLoad(fileContent, {json: true}).$graph;
 
         graph.filter(node => node.type === "record" || node.type === "enum")
-            .forEach(record => {
-                const fileName = `${record.name}.ts`;
-                let compiled = "";
-
-                if (record.type === "enum") {
-                    compiled = makeEnum(record);
-                } else {
-                    compiled = makeInterface(record);
-                }
-
-                fs.writeFileSync(`${output}/${fileName}`, compiled);
-            });
+            // .filter(node => node.name === "CWLType" || node.name === "PrimitiveType")
+            .forEach(node => entries[node.name] = node);
     });
+
+    let nameTokens = Object.keys(entries);
+
+    for (let name in entries) {
+        const record = entries[name];
+        const fileName = `${record.name}.ts`;
+        let compiled = "";
+
+        if (record.type === "enum") {
+            compiled = makeEnum(record, nameTokens);
+        } else {
+            compiled = makeInterface(record, nameTokens);
+        }
+
+        fs.writeFileSync(`${output}/${fileName}`, compiled);
+    }
 }
 
 function parseTypes(field, includes) {
@@ -72,7 +80,7 @@ function parseTypes(field, includes) {
         }
 
         if (typeof type === "string") {
-            return sanitizeSchemaLink(type, includes);
+            return resolveTokenName(type, includes);
         }
 
         if (typeof type === "object") {
@@ -87,39 +95,36 @@ function parseTypes(field, includes) {
         return type;
     }
 
-    let output = [...types.map(scan)];
-    return output;
-
+    return [...types.map(scan)];
 }
 
-function sanitizeSchemaLink(name, includes) {
-    const sanitized = name.replace(/^(#|sld:|cwl:)/, "");
+function resolveTokenName(name, includes) {
+    const sanitized = name.replace(/^(#|sld:|cwl:|xsd:)/, "");
 
-    let firstChar = name.charAt(0);
-    if (Array.isArray(includes)
-        && firstChar !== "\""
-        && name.split("|").length === 1
-        && sanitized.indexOf("Array<") === -1
-        && ["any", "number", "array", "boolean", "string", "null"].indexOf(name) === -1) {
-        // if (name.charAt(0) === "#" || name.indexOf("sld:") === 0 || name.indexOf("cwl:") === 0) {
+    if (Array.isArray(includes)) {
         includes.push(sanitized);
-        // }
     }
 
     return sanitized;
 }
 
-function makeEnum(record) {
+function makeEnum(record, nameTokens) {
     const data = Object.assign({
         name: "",
         doc: "",
-        symbols: []
+        symbols: [],
+        includes: []
     }, record);
+
+    data.symbols = parseTypes({types: data.symbols}).map(type => `"${type}"`);
+    if(record.extends){
+        data.symbols = data.symbols.concat(parseTypes({types: [record.extends]}, data.includes));
+    }
 
     return ejs.render(fs.readFileSync("./stubs/enum.stub.ejs", readConfig), data);
 }
 
-function makeInterface(record) {
+function makeInterface(record, nameTokens) {
     const data = Object.assign({
         fields: [],
         name: "",
@@ -133,9 +138,9 @@ function makeInterface(record) {
     data.doc = data.doc.replace(...docAsteriskExpansion);
     if (data.extends) {
         if (typeof data.extends === "string") {
-            data.extension = sanitizeSchemaLink(data.extends, data.includes);
+            data.extension = resolveTokenName(data.extends, data.includes);
         } else if (Array.isArray(data.extends)) {
-            data.extension = data.extends.map(ext => sanitizeSchemaLink(ext, data.includes)).join(", ");
+            data.extension = data.extends.map(ext => resolveTokenName(ext, data.includes)).join(", ");
         }
     }
 
@@ -145,17 +150,38 @@ function makeInterface(record) {
 
 
         let parsedTypes = parseTypes(field, data.includes);
+
         if (parsedTypes[0] === "null") {
             field.isOptional = true;
             parsedTypes.shift();
         }
+
+        parsedTypes.forEach((type, index, self) => {
+            if (typeof type !== "string") {
+                console.log("wait");
+            }
+            if (typeof type === "string" && type.charAt(type.length - 1) === "?") {
+                self[index] = type.substr(0, type.length - 1);
+                field.isOptional = true;
+            }
+        });
+
         field.type = parsedTypes.join(" | ");
         field.type = parseTypes(field, data.includes);
 
     });
 
+    if(data.name === "SaladRecordField"){
+        console.log("stop");
+    }
+
     data.includes = data.includes
-        .filter((item, index, arr) => arr.indexOf(item) === index && item !== data.name);
+        .map(name => name.replace(/[\[\]\?]/, ""))
+        .filter((item, index, arr) => {
+            return arr.indexOf(item) === index && item !== data.name
+                && nameTokens.indexOf(item) !== -1
+        });
+
 
     return ejs.render(fs.readFileSync("./stubs/interface.stub.ejs", readConfig), data);
 }

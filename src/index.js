@@ -6,17 +6,16 @@ const path = require("path"),
     mkdirp = require("mkdirp"),
     ejs = require("ejs");
 
-const cltPath = path.resolve("../common-workflow-language/draft-3/CommandLineTool.yml");
-
 const readConfig = {
     encoding: "utf8",
     flag: "r"
 };
 
 
-let drafts = {
+const drafts = {
     names: ["draft-3", "draft-4"],
     files: [
+        "salad/schema_salad/metaschema/metaschema.yml",
         "CommandLineTool.yml",
         "Process.yml",
         "Workflow.yml"
@@ -49,7 +48,7 @@ for (let draftName of drafts.names) {
     });
 }
 
-function parseTypes(field) {
+function parseTypes(field, includes) {
     let types = field.types || field.type;
     if (!Array.isArray(types)) {
         types = [types];
@@ -61,11 +60,17 @@ function parseTypes(field) {
         }
 
         if (typeof type === "string") {
-            return sanitizeSchemaLink(type);
+            return sanitizeSchemaLink(type, includes);
         }
 
-        if (typeof type === "object" && type.type === "array") {
-            return "Array<" + parseTypes({types: type.items}).join(" | ") + ">";
+        if(typeof type === "object"){
+            if(type.type === "array"){
+                return "Array<" + parseTypes({types: type.items}, includes).join(" | ") + ">";
+            }
+
+            if(type.type === "enum"){
+                return parseTypes({types: type.symbols}).map(i => `"${i}"`);
+            }
         }
         return type;
     }
@@ -75,8 +80,22 @@ function parseTypes(field) {
 
 }
 
-function sanitizeSchemaLink(name) {
-    return name.replace(/^(#|sld:)/, "");
+function sanitizeSchemaLink(name, includes) {
+    const sanitized = name.replace(/^(#|sld:)/, "");
+
+    if (Array.isArray(includes)) {
+        if (name.charAt(0) === "#") {
+            includes.push({
+                token: sanitized,
+                path: `./${sanitized}`
+            });
+        } else if (name.indexOf("sld:") === 0) {
+            includes.push({token: sanitized, path: `./${sanitized}`});
+        }
+
+    }
+
+    return sanitized;
 }
 
 function makeEnum(record) {
@@ -94,7 +113,8 @@ function makeInterface(record) {
         fields: [],
         name: "",
         doc: "",
-        extension: false
+        extension: false,
+        includes: []
     }, record);
 
     const docAsteriskExpansion = [/\n/gi, "\n * "];
@@ -102,9 +122,9 @@ function makeInterface(record) {
     data.doc = data.doc.replace(...docAsteriskExpansion);
     if (data.extends) {
         if (typeof data.extends === "string") {
-            data.extension = sanitizeSchemaLink(data.extends);
+            data.extension = sanitizeSchemaLink(data.extends, data.includes);
         } else if (Array.isArray(data.extends)) {
-            data.extension = data.extends.map(sanitizeSchemaLink).join(", ");
+            data.extension = data.extends.map(ext => sanitizeSchemaLink(ext, data.includes)).join(", ");
         }
     }
 
@@ -113,15 +133,18 @@ function makeInterface(record) {
         field.isOptional = false;
 
 
-        let parsedTypes = parseTypes(field);
+        let parsedTypes = parseTypes(field, data.includes);
         if (parsedTypes[0] === "null") {
             field.isOptional = true;
             parsedTypes.shift();
         }
         field.type = parsedTypes.join(" | ");
-        field.type = parseTypes(field);
+        field.type = parseTypes(field, data.includes);
 
     });
+
+    data.includes = data.includes
+        .filter((item, index, arr) => arr.indexOf(item) === index);
 
     return ejs.render(fs.readFileSync("./stubs/interface.stub.ejs", readConfig), data);
 }

@@ -1,3 +1,6 @@
+<% if (includes.length) { for (var inc of includes) { %>
+import {<%- inc.token %>} from "<%- inc.path %>";<% } } %>
+
 <% if(doc) { %>
 /**
 * <%- doc %>
@@ -5,11 +8,10 @@
 <% } %>
 export interface <%- name %> <% if (extension) { %>extends <%- extension %><% } %> {
 <% for (let i = 0; i < fields.length; i++ ) { %>
-    <% if (fields[i].doc) { %>
+    <%if (fields[i].doc){%>
     /**
     * <%- fields[i].doc %>
-    */
-    <% } %>
+    */<%}%>
     <%- fields[i].name %><% if(fields[i].isOptional === true) { %>?<% } %>: <%- fields[i].type %>;
 <% } %>
 }

@@ -22,15 +22,9 @@
   "dependencies": {
     "asciidoctor.js": "^1.5.5-1",
     "ejs": "^2.4.2",
-    "handlebars": "^4.0.5",
     "js-yaml": "^3.6.1",
     "mkdirp": "^0.5.1",
     "nodegit": "^0.13.2",
-    "typescript-formatter": "^2.2.0",
-    "yaml-to-json": "^0.3.0",
     "yargs": "^4.7.1"
-  },
-  "devDependencies": {
-    "typescript": "^1.8.0"
   }
 }

@@ -11,6 +11,8 @@ const readConfig = {
     flag: "r"
 };
 
+const dirname = __dirname;
+
 const drafts = {
     "draft-3": [
         "salad/schema_salad/metaschema/metaschema.yml",
@@ -32,7 +34,7 @@ function generate(cwldir, outdir) {
     for (let draftName of Object.keys(drafts)) {
 
         let output = path.resolve(`${outdir}/${draftName}`);
-       let cr = mkdirp.sync(output);
+        mkdirp.sync(output);
 
         let entries = {};
 
@@ -122,7 +124,7 @@ function makeEnum(record, nameTokens) {
         data.symbols = data.symbols.concat(parseTypes({types: [record.extends]}, data.includes));
     }
 
-    return ejs.render(fs.readFileSync("../stubs/enum.stub.ejs", readConfig), data);
+    return ejs.render(fs.readFileSync(`${dirname}/stubs/enum.stub.ejs`, readConfig), data);
 }
 
 function makeInterface(record, nameTokens) {
@@ -176,7 +178,7 @@ function makeInterface(record, nameTokens) {
         });
 
 
-    return ejs.render(fs.readFileSync("../stubs/interface.stub.ejs", readConfig), data);
+    return ejs.render(fs.readFileSync(`${dirname}/stubs/interface.stub.ejs`, readConfig), data);
 }
 
 module.exports = {

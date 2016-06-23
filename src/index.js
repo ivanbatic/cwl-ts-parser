@@ -26,7 +26,6 @@ const drafts = {
         "CommandLineTool.yml",
         "Process.yml",
         "Workflow.yml"
-
     ]
 };
 
@@ -45,15 +44,57 @@ function generate(cwldir, outdir) {
             const graph = yaml.safeLoad(fileContent, {json: true}).$graph;
 
             graph.filter(node => node.type === "record" || node.type === "enum")
-                .forEach(node => entries[node.name] = node);
+                .forEach(node => {
+                    node.parents = getParentTokens(node);
+                    entries[node.name] = node;
+                });
         });
 
+        for (let token in entries) {
+            entries[token].parents = entries[token].parents.map(parentToken => entries[parentToken]);
+        }
+
         let nameTokens = Object.keys(entries);
+
+        let unspecialized = nameTokens.slice();
+
+        while (unspecialized.length > 0) {
+            let cleanup = [];
+            for (let i = 0; i < unspecialized.length; i++) {
+                let token = unspecialized[i];
+                let result = specializeTypes(entries[token]);
+                if (result === null) {
+                    cleanup.push(i);
+                }
+            }
+
+            let newUnspecialized = unspecialized.filter((_, index) => {
+                return cleanup.indexOf(index) === -1;
+            });
+
+            if (newUnspecialized.length === unspecialized.length) {
+                console.error(`\n-----Could not specialize ${draftName} entries:\n`);
+                unspecialized.forEach(entry => {
+                    let maps = entries[entry].specialize.map(ob => {
+                        return Object.keys(ob).map(key => {
+                            return `\n\t${key}: ${ob[key]}`;
+                        });
+                    }).join("\n\t");
+
+                    console.error(`\n ${entry} -> ${maps}`);
+                });
+                break;
+            }
+
+            unspecialized = newUnspecialized;
+        }
 
         for (let name in entries) {
             const record = entries[name];
             const fileName = `${record.name}.ts`;
             let compiled = "";
+
+            specializeTypes(record);
 
             if (record.type === "enum") {
                 compiled = makeEnum(record, nameTokens);
@@ -65,6 +106,114 @@ function generate(cwldir, outdir) {
 
         }
     }
+}
+
+function specializeTypes(entry) {
+    if (!entry.specialize) {
+        return null;
+    }
+
+    function findParentSpecFrom(entry, token) {
+        let resolvedToken = resolveTokenName(token);
+
+        for (let i in entry.fields) {
+            let fieldTypes = parseTypes(entry.fields[i]);
+            let found = fieldTypes.find((item) => {
+                let variants = [
+                    resolvedToken,
+                    `${resolvedToken}[]`,
+                    `${resolvedToken}?`,
+                    `${resolvedToken}[]?`,
+                    `Array<${resolvedToken}>`
+                ];
+                return variants.indexOf(item) !== -1;
+            });
+            if (found) {
+                return Object.assign({}, entry.fields[i]);
+            }
+        }
+
+
+        for (let parentIndex in entry.parents) {
+            let spec = findParentSpecFrom(entry.parents[parentIndex], resolvedToken);
+            if (spec) {
+                return spec;
+            }
+        }
+
+        return false;
+    }
+
+    let specs = entry.specialize;
+    if (!Array.isArray(specs)) {
+        entry.specialize = specs = [specs];
+    }
+
+    let resolved = [];
+    for (let i = 0; i < specs.length; i++) {
+        let spec = specs[i];
+        let newField = findParentSpecFrom(entry, spec.specializeFrom);
+
+        if (newField) {
+
+            let fromToken = resolveTokenName(spec.specializeFrom);
+            let toToken = resolveTokenName(spec.specializeTo);
+
+            let fieldTypes = newField.type || newField.types;
+            if (!Array.isArray(fieldTypes)) {
+                fieldTypes = [fieldTypes];
+            }
+            let replacedTypes = fieldTypes.map(type => {
+
+                let regex = new RegExp(`(^|\s|<|#|sld:|xsd:|cwl:)${fromToken}`, "g");
+                if (typeof type === "string") {
+                    return type.replace(regex, toToken);
+                }
+                if (typeof type === "object") {
+
+                    let update = Object.assign({}, type);
+
+                    if (update.type === "array") {
+                        let items = Array.isArray(update.items) ? update.items : [update.items];
+
+                        update.items = items.map(item => item.replace(regex, toToken));
+                    } else {
+                        console.error("Unhandled specialization");
+                        throw new Error("Unhandled case of enum property specialization.");
+                    }
+                    return update;
+                }
+
+                return type;
+            });
+            if (newField.type) {
+                delete newField.type;
+            }
+
+            newField.types = replacedTypes;
+
+            if (!entry.fields) {
+                entry.fields = [newField];
+            } else {
+                let foundIndex = entry.fields.findIndex((field => field.name === newField.name));
+                if (foundIndex !== -1) {
+                    entry.fields[foundIndex] = newField;
+                } else {
+                    entry.fields.push(newField);
+                }
+            }
+            resolved.push(i);
+        }
+    }
+    entry.specialize = entry.specialize.filter((item, index) => resolved.indexOf(index) === -1);
+    if (entry.specialize.length === 0) {
+        delete entry.specialize;
+        return null;
+    }
+
+    return false;
+
+
 }
 
 function parseTypes(field, includes) {
@@ -127,6 +276,17 @@ function makeEnum(record, nameTokens) {
     return ejs.render(fs.readFileSync(`${dirname}/stubs/enum.stub.ejs`, readConfig), data);
 }
 
+function getParentTokens(entry) {
+    let parentTokens = [];
+    if (typeof entry.extends === "string") {
+        parentTokens = [resolveTokenName(entry.extends, entry.includes)];
+    } else if (Array.isArray(entry.extends)) {
+        parentTokens = entry.extends.map(ext => resolveTokenName(ext, entry.includes));
+    }
+
+    return parentTokens;
+}
+
 function makeInterface(record, nameTokens) {
     const data = Object.assign({
         fields: [],
@@ -140,6 +300,7 @@ function makeInterface(record, nameTokens) {
 
     data.doc = data.doc.replace(...docAsteriskExpansion);
     if (data.extends) {
+        data.extension = getParentTokens(data).join(", ");
         if (typeof data.extends === "string") {
             data.extension = resolveTokenName(data.extends, data.includes);
         } else if (Array.isArray(data.extends)) {
@@ -166,8 +327,6 @@ function makeInterface(record, nameTokens) {
         });
 
         field.type = parsedTypes.join(" | ");
-        field.type = parseTypes(field, data.includes);
-
     });
 
     data.includes = data.includes

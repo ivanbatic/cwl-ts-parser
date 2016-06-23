@@ -6,7 +6,6 @@
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "get-cwl": "rm -rf common-workflow-language && mkdir common-workflow-language && git clone https://github.com/common-workflow-language/common-workflow-language",
-    "fmt": "node node_modules/typescript-formatter/bin/tsfmt -- src/tmp/**/*.ts",
     "start": "node ./src/index.js"
   },
   "repository": {

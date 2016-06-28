@@ -62,6 +62,7 @@ function generate(cwldir, outdir) {
             let cleanup = [];
             for (let i = 0; i < unspecialized.length; i++) {
                 let token = unspecialized[i];
+
                 let result = specializeTypes(entries[token]);
                 if (result === null) {
                     cleanup.push(i);
@@ -117,6 +118,10 @@ function specializeTypes(entry) {
         let resolvedToken = resolveTokenName(token);
 
         for (let i in entry.fields) {
+            console.log("Scanning", entry.name, i, "of", entry.fields.length);
+            if(entry.name === "CommandLineTool" && i == 5){
+                console.log("Here", i);
+            }
             let fieldTypes = parseTypes(entry.fields[i]);
             let found = fieldTypes.find((item) => {
                 let variants = [
@@ -223,15 +228,18 @@ function parseTypes(field, includes) {
     }
 
     function scan(type) {
-        if (["int", "float", "double", "long"].indexOf(type) !== -1) {
-            return "number";
-        }
-
-        if (type === "Any") {
-            return "any";
-        }
 
         if (typeof type === "string") {
+            if (type.indexOf("Any") === 0) {
+                return "any" + type.substr(3);
+            }
+
+            for (let n of ["int", "float", "double", "long"]) {
+                if (type.indexOf(n) === 0) {
+                    return "number" + type.substr(n.length);
+                }
+            }
+
             return resolveTokenName(type, includes);
         }
 

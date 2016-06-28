@@ -118,10 +118,6 @@ function specializeTypes(entry) {
         let resolvedToken = resolveTokenName(token);
 
         for (let i in entry.fields) {
-            console.log("Scanning", entry.name, i, "of", entry.fields.length);
-            if(entry.name === "CommandLineTool" && i == 5){
-                console.log("Here", i);
-            }
             let fieldTypes = parseTypes(entry.fields[i]);
             let found = fieldTypes.find((item) => {
                 let variants = [
@@ -337,8 +333,7 @@ function makeInterface(record, nameTokens) {
         field.type = parsedTypes.join(" | ");
     });
 
-    data.includes = data.includes
-        .map(name => name.replace(/[\[\]\?]/, ""))
+    data.includes = data.includes.map(name => name.replace(/((\[)?(\])?(\?)?)$/gi, ""))
         .filter((item, index, arr) => {
             return arr.indexOf(item) === index && item !== data.name
                 && nameTokens.indexOf(item) !== -1

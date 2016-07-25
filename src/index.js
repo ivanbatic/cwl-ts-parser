@@ -96,6 +96,7 @@ function generate(cwldir, outdir) {
                 unspecialized = newUnspecialized;
             }
 
+            let indexTpl = ``;
 
             for (let name in entries) {
                 const record = entries[name];
@@ -111,8 +112,12 @@ function generate(cwldir, outdir) {
                 }
 
                 fs.writeFile(`${output}/${fileName}`, compiled);
-
+                indexTpl += `export * from "./${record.name}"\n`;
             }
+
+            fs.writeFile(`${output}/index.ts`, indexTpl);
+
+
         }
     } catch (e) {
         console.error(e);

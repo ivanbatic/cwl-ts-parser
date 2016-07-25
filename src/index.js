@@ -14,13 +14,7 @@ const readConfig = {
 const dirname = __dirname;
 
 const drafts = {
-    "draft-3": [
-        "salad/schema_salad/metaschema/metaschema.yml",
-        "CommandLineTool.yml",
-        "Process.yml",
-        "Workflow.yml"
-    ],
-    "draft-4": [
+    "v1.0": [
         "salad/schema_salad/metaschema/metaschema_base.yml",
         "salad/schema_salad/metaschema/metaschema.yml",
         "CommandLineTool.yml",
@@ -30,82 +24,98 @@ const drafts = {
 };
 
 function generate(cwldir, outdir) {
-    for (let draftName of Object.keys(drafts)) {
+    try {
+        for (let draftName of Object.keys(drafts)) {
 
-        let output = path.resolve(`${outdir}/${draftName}`);
-        mkdirp.sync(output);
+            let output = path.resolve(`${outdir}/${draftName}`);
+            mkdirp.sync(output);
 
-        let entries = {};
+            let entries = {};
 
-        drafts[draftName].forEach(filename => {
-            const absPath = path.resolve(`${cwldir}/${draftName}/${filename}`);
+            drafts[draftName].forEach(filename => {
+                const absPath = path.resolve(`${cwldir}/${draftName}/${filename}`);
 
-            const fileContent = fs.readFileSync(absPath, readConfig);
-            const graph = yaml.safeLoad(fileContent, {json: true}).$graph;
+                const fileContent = fs.readFileSync(absPath, readConfig);
+                const graph = yaml.safeLoad(fileContent, {json: true}).$graph;
 
-            graph.filter(node => node.type === "record" || node.type === "enum")
-                .forEach(node => {
-                    node.parents = getParentTokens(node);
-                    entries[node.name] = node;
-                });
-        });
+                graph.filter(node => node.type === "record" || node.type === "enum")
+                    .forEach(node => {
+                        node.parents = getParentTokens(node);
+                        entries[node.name] = node;
+                    });
+            });
 
-        for (let token in entries) {
-            entries[token].parents = entries[token].parents.map(parentToken => entries[parentToken]);
-        }
+            for (let token in entries) {
+                // Add Parents
+                entries[token].parents = entries[token].parents.map(parentToken => entries[parentToken]);
 
-        let nameTokens = Object.keys(entries);
+                // Normalize types from hash maps to arrays
+                if (entries[token].hasOwnProperty("fields") && !Array.isArray(entries[token].fields)) {
+                    const fieldArray = [];
 
-        let unspecialized = nameTokens.slice();
-
-        while (unspecialized.length > 0) {
-            let cleanup = [];
-            for (let i = 0; i < unspecialized.length; i++) {
-                let token = unspecialized[i];
-
-                let result = specializeTypes(entries[token]);
-                if (result === null) {
-                    cleanup.push(i);
+                    for (let name in entries[token].fields) {
+                        fieldArray.push(Object.assign(entries[token].fields[name], {name}));
+                    }
+                    entries[token].fields = fieldArray;
                 }
             }
 
-            let newUnspecialized = unspecialized.filter((_, index) => {
-                return cleanup.indexOf(index) === -1;
-            });
+            let nameTokens = Object.keys(entries);
 
-            if (newUnspecialized.length === unspecialized.length) {
-                console.error(`\n-----Could not specialize ${draftName} entries:\n`);
-                unspecialized.forEach(entry => {
-                    let maps = entries[entry].specialize.map(ob => {
-                        return Object.keys(ob).map(key => {
-                            return `\n\t${key}: ${ob[key]}`;
-                        });
-                    }).join("\n\t");
+            let unspecialized = nameTokens.slice();
 
-                    console.error(`\n ${entry} -> ${maps}`);
+            while (unspecialized.length > 0) {
+                let cleanup = [];
+                for (let i = 0; i < unspecialized.length; i++) {
+                    let token = unspecialized[i];
+
+                    let result = specializeTypes(entries[token]);
+                    if (result === null) {
+                        cleanup.push(i);
+                    }
+                }
+
+                let newUnspecialized = unspecialized.filter((_, index) => {
+                    return cleanup.indexOf(index) === -1;
                 });
-                break;
+
+                if (newUnspecialized.length === unspecialized.length) {
+                    console.error(`\n-----Could not specialize ${draftName} entries:\n`);
+                    unspecialized.forEach(entry => {
+                        let maps = entries[entry].specialize.map(ob => {
+                            return Object.keys(ob).map(key => {
+                                return `\n\t${key}: ${ob[key]}`;
+                            });
+                        }).join("\n\t");
+
+                        console.error(`\n ${entry} -> ${maps}`);
+                    });
+                    break;
+                }
+
+                unspecialized = newUnspecialized;
             }
 
-            unspecialized = newUnspecialized;
-        }
 
-        for (let name in entries) {
-            const record = entries[name];
-            const fileName = `${record.name}.ts`;
-            let compiled = "";
+            for (let name in entries) {
+                const record = entries[name];
+                const fileName = `${record.name}.ts`;
+                let compiled = "";
 
-            specializeTypes(record);
+                specializeTypes(record);
 
-            if (record.type === "enum") {
-                compiled = makeEnum(record, nameTokens);
-            } else {
-                compiled = makeInterface(record, nameTokens);
+                if (record.type === "enum") {
+                    compiled = makeEnum(record, nameTokens);
+                } else {
+                    compiled = makeInterface(record, nameTokens);
+                }
+
+                fs.writeFile(`${output}/${fileName}`, compiled);
+
             }
-
-            fs.writeFile(`${output}/${fileName}`, compiled);
-
         }
+    } catch (e) {
+        console.error(e);
     }
 }
 
@@ -145,14 +155,26 @@ function specializeTypes(entry) {
         return false;
     }
 
-    let specs = entry.specialize;
-    if (!Array.isArray(specs)) {
-        entry.specialize = specs = [specs];
+    if (!Array.isArray(entry.specialize)) {
+        entry.specialize = [entry.specialize];
     }
 
+    entry.specialize = entry.specialize.reduce((acc, spec) => {
+        if (spec.hasOwnProperty("specializeFrom")) {
+            return acc.concat(spec);
+        }
+
+        const newSpecs = [];
+        for (let key in spec) {
+            newSpecs.push({specializeFrom: key, specializeTo: spec[key]});
+        }
+        return acc.concat(newSpecs);
+    }, []);
+
     let resolved = [];
-    for (let i = 0; i < specs.length; i++) {
-        let spec = specs[i];
+    for (let i = 0; i < entry.specialize.length; i++) {
+        let spec = entry.specialize[i];
+
         let newField = findParentSpecFrom(entry, spec.specializeFrom);
 
         if (newField) {
@@ -310,6 +332,14 @@ function makeInterface(record, nameTokens) {
         } else if (Array.isArray(data.extends)) {
             data.extension = data.extends.map(ext => resolveTokenName(ext, data.includes)).join(", ");
         }
+    }
+
+    if (!Array.isArray(data.fields)) {
+        const fieldArray = [];
+        for (let name in data.fields) {
+            fieldArray.push(Object.assign(data.fields[name], {name}));
+        }
+        data.fields = fieldArray;
     }
 
     data.fields.forEach(field => {
